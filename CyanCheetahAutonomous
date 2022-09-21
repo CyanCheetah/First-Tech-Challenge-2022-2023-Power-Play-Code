@@ -1,0 +1,232 @@
+package org.firstinspires.ftc.teamcode;
+
+//This one's the source for most
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.Servo;
+
+import com.acmerobotics.dashboard.config.Config;
+import com.acmerobotics.roadrunner.geometry.Pose2d;
+import com.acmerobotics.roadrunner.trajectory.Trajectory;
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.teamcode.drive.opmode.SampleMecanumDrive;
+import org.opencv.core.Core;
+import org.opencv.core.Mat;
+import org.opencv.core.Point;
+import org.opencv.core.Rect;
+import org.opencv.core.Scalar;
+import org.opencv.imgproc.Imgproc;
+import org.openftc.easyopencv.OpenCvCamera;
+import org.openftc.easyopencv.OpenCvCameraFactory;
+import org.openftc.easyopencv.OpenCvCameraRotation;
+import org.openftc.easyopencv.OpenCvPipeline;
+import org.openftc.easyopencv.OpenCvWebcam;
+
+
+
+@Autonomous
+public class CyanCheetahAutonomous extends LinearOpMode {
+
+
+
+
+
+    OpenCvCamera webcam;
+    // OpenCvCamera webcam2;
+    TripleRectPipeline pipeline;
+    // SamplePipeline cyanline;
+
+
+    private int ticksPerRevolution = 145  + 1/10;
+
+    String location = null;
+
+    int a;
+    int b;
+    int c;
+    float pwr = 0.35f;
+
+
+
+int DISTANCE = 50;
+    @Override
+    public void runOpMode() throws InterruptedException {
+        int cameraMonitorViewId = hardwareMap.appContext.getResources().getIdentifier("cameraMonitorViewId", "id", hardwareMap.appContext.getPackageName());
+        webcam = OpenCvCameraFactory.getInstance().createWebcam(hardwareMap.get(WebcamName.class, "OpenCvCamera"), cameraMonitorViewId);
+        // webcam2 = OpenCvCameraFactory.getInstance().createWebcam(hardwareMap.get(WebcamName.class, "OpenCvCamera"), cameraMonitorViewId);
+
+        pipeline = new TripleRectPipeline();
+        webcam.setPipeline(pipeline);
+        SampleMecanumDrive drive = new SampleMecanumDrive(hardwareMap);
+
+
+        webcam.openCameraDeviceAsync(new OpenCvCamera.AsyncCameraOpenListener() {
+            @Override
+            public void onOpened() {
+                //1280 x 720 resolution, aka 720p
+                webcam.startStreaming(1280, 720, OpenCvCameraRotation.UPRIGHT);
+
+            }
+
+            @Override
+            public void onError(int errorCode) {
+
+            }
+        });
+        waitForStart();
+
+        if (opModeIsActive()) {
+
+
+            while (pipeline.getRegionA() == 0 && pipeline.getRegionB() == 0 && pipeline.getRegionC() == 0) {
+
+                sleep(100);
+                //let camera process using time interval 
+                telemetry.addData("Box A", pipeline.getRegionA());
+                telemetry.addData("Box B", pipeline.getRegionB());
+                telemetry.addData("Box C", pipeline.getRegionC());
+                telemetry.update();
+
+                a = pipeline.getRegionA();
+                b = pipeline.getRegionB();
+                c = pipeline.getRegionC();
+            }
+
+
+            a = pipeline.getRegionA();
+            b = pipeline.getRegionB();
+            c = pipeline.getRegionC();
+
+
+            if (b<= 120) {
+
+
+
+                Trajectory trajectoryForward = drive.trajectoryBuilder(new Pose2d())
+                        .forward(20)
+                        .build();
+                drive.followTrajectory(trajectoryForward);
+                drive.turn(Math.toRadians(90));
+                drive.trajectoryBuilder(new Pose2d())
+                        .forward(30)
+                        .build();
+                drive.followTrajectory(trajectoryForward);
+
+
+
+            }
+            if (b>= 100) {
+
+
+                Trajectory trajectoryForward = drive.trajectoryBuilder(new Pose2d())
+                        .forward(50)
+                        .build();
+                drive.followTrajectory(trajectoryForward);
+
+            }
+            if (b>= 150) {
+
+
+                Trajectory trajectoryForward = drive.trajectoryBuilder(new Pose2d())
+                        .forward(100)
+                        .build();
+                drive.followTrajectory(trajectoryForward);
+
+            }
+
+        }
+    }
+
+    public class TripleRectPipeline extends OpenCvPipeline {
+        //Colors Defined
+        private final Scalar RED = new Scalar(255,0,0);
+        private final Scalar BLUE = new Scalar(0, 0, 255);
+        private final Scalar GREEN = new Scalar(0, 255, 0);
+
+        //I just want someone to tickle my balls<> -Noah
+        private static final int THRESHOLD = 150;
+
+        /*
+
+        [A]    [B]     [C]
+         */
+        Point aTopLeft = new Point(70, 140);
+        Point aBottomRight = new Point(220, 290);
+
+        Point bTopLeft = new Point(570, 140);
+        Point bBottomRight = new Point(720, 290);
+
+        Point cTopLeft = new Point(1030, 140);
+        Point cBottomRight = new Point(1180, 295);
+
+        //YCrCb  --> Y = Brightness, Cr = Red - Luma, Cb = Blue - Luma
+        Mat regionA_Cb;
+        Mat regionB_Cb;
+        Mat regionC_Cb;
+
+        Mat YCrCb = new Mat();
+        Mat Cb = new Mat();
+
+        private volatile int averageA;
+        private volatile int averageB;
+        private volatile int averageC;
+        //private string type = "N/a";
+        private void inputToCb(Mat input) {
+            Imgproc.cvtColor(input, YCrCb, Imgproc.COLOR_RGB2YCrCb);
+            Core.extractChannel(YCrCb, Cb, 2);
+        }
+
+        @Override
+        public void init(Mat input) {
+            inputToCb(input);
+
+            regionA_Cb = Cb.submat(new Rect(aTopLeft, aBottomRight));
+            regionB_Cb = Cb.submat(new Rect(bTopLeft, bBottomRight));
+            regionC_Cb = Cb.submat(new Rect(cTopLeft, cBottomRight));
+        }
+
+        @Override
+        public Mat processFrame(Mat input) {
+            inputToCb(input);
+            //processing the colors and th eregions in the camera frames. 
+            averageA = (int) Core.mean(regionA_Cb).val[0];
+            averageB = (int) Core.mean(regionB_Cb).val[0];
+            averageC = (int) Core.mean(regionC_Cb).val[0];
+
+            //A
+            Imgproc.rectangle(input, aTopLeft, aBottomRight, RED,2);
+            //B
+            Imgproc.rectangle(input, bTopLeft, bBottomRight, BLUE,2);
+            //C
+            Imgproc.rectangle(input, cTopLeft, cBottomRight, GREEN,2);
+
+
+
+
+            return input;
+        }
+
+
+        public int getAverage() {
+            return averageA;
+        }
+
+        public int getRegionA() {
+            return averageA;
+        }
+
+        public int getRegionB() { return averageB; }
+
+        public int getRegionC() { return averageC; }
+
+        public int getReg;
+
+    }
+}
+//Tanuj here, good luck with it. 
